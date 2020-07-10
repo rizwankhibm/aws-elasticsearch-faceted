@@ -1,0 +1,407 @@
+Test ElastSearch Sample:
+
+POST Data:
+curl -XPOST {elatica_url}/index/1 -d '{"director": "Burton, Tim", "genre": ["Comedy","Sci-Fi"], "year": 1996, 
+"actor": ["Jack Nicholson","Pierce Brosnan","Sarah Jessica Parker"], "title": "Mars Attacks!"}' -H 'Content-Type: application/json'
+
+Bulk Upload:
+
+
+Search Data:
+curl -XGET '{elatica_url}/index/_search?q=mars&pretty=true'
+
+-------------------------------------------
+GET All indices:
+curl -XGET '{elatica_url}/_aliases?pretty=true' -H 'Content-Type: application/json'
+
+
+Delete Index: 
+'wk-phoenix-es1'
+
+curl -XPOST '{elatica_url}/_delete_by_query' -d '{  "query": {  "match_all": {} } }' -H 'Content-Type: application/json'
+
+curl -XDELETE {elatica_url}/city_offices
+
+
+Create Index:
+
+curl -XPUT '{elatica_url}/index/my-dept' -d '{ "department": { "type": "string", "index": "not_analyzed" } }' -H 'Content-Type: application/json'
+
+curl -XPUT '{elatica_url}/index/my-sec' -d '{ "sections": { "type": "string", "index": "not_analyzed" } }' -H 'Content-Type: application/json'
+
+
+------------------------------------------
+
+https://sharing.luminis.eu/blog/faceted-search-with-elasticsearch/
+
+----------------------------------------
+Sample-Data:
+
+{
+"id":"6311", "code":"1","status":"ACTIVE", 
+"name":"Pediatrics",
+"description":"Pediatrics",
+"speciality": [ {
+		"name": "Pediatrics",
+		"topic":[ ]
+		}
+	]
+}
+
+
+{
+"id":"6319", "code":"2","status":"ACTIVE", 
+"name":"Trauma,Surgery/Abdomen-General,Liver",
+"description":"Trauma, Vascular /Abdomen/General,Liver",
+"speciality": [ {
+		"name": "Surgery",
+		"topic":[ { "name": "Abdomen",  "sub_topic": [ {"name": "General"}, {"name": "Liver"} ] }]
+		}, { "name": "Trauma","topic":[] }
+	]
+}
+
+{
+"id":"6321", "code":"3","status":"ACTIVE", 
+"name":"Trauma,Surgery/Abdomen-General,Liver,Pancreas,Biliary, Hernia, Spleen",
+"description":"Trauma, Vascular /Abdomen/General,Liver, Pancreas,Biliary,Hernia,Spleen",
+"speciality": [ {
+		"name": "Surgery",
+		"topic":[ { "name": "Abdomen",  "sub_topic": [ {"name": "General"}, {"name": "Liver"}, {"name": "Pancreas"}, {"name": "Biliary"}, {"name": "Hernia"}, {"name": "Spleen"}
+		] }]}
+		, { "name": "Trauma","topic":[] }
+	]
+}
+
+Create multi-level index:
+
+Index: index-assset
+{
+  "mappings": {
+	    "properties": {
+			"id": { "type": "keyword" },
+		    "assetCode": { "type": "keyword"},
+		    "name": { "type": "keyword" },
+		    "description": { "type": "keyword"},
+		    "status": { "type": "keyword"},
+			"speciality": {
+	            "type":"nested",
+	            "properties": {
+	               "name":{ "type":"keyword" },
+	            	"topic": {
+	            		"type":"nested",
+	            		"properties": {
+			            	"name": {"type": "keyword"},
+			            	"sub_topic": {
+			            		"type":"nested",
+			            		"properties": {
+			            			"name": { "type": "keyword"}
+			            		}
+			            	}
+
+			            	"" nested
+			          	}
+			        }
+			    }
+			}
+		}
+	}
+}
+
+{
+  "size": 0,
+  "aggs": {
+    "procedures": {
+      "nested": {
+        "path": "speciality"
+      }
+    }
+  }
+}
+
+------------------------------------------
+
+If we wanted aggregations for the speciality, we will set this property to speciality.name.
+
+{
+  "size": 0,
+  "aggs": {
+    "speciality": {
+      "nested": {
+        "path": "speciality"
+      },
+      "aggs": {
+        "name": {
+          "terms": {
+            "field": "speciality.name",
+            "size": 50
+          }
+        }
+      }
+    }
+  }
+}
+
+---------------------------------------
+Queries:
+
+{
+	"query" : {
+ 		"nested" : {
+            "path" : "speciality",
+            "query" :  {
+				"bool" : {
+                    "must" : [ 
+                    	{ "match" : { "speciality.name" : "Psychiatry" }}
+                    ]
+                }
+            }
+            
+        }
+    }
+}
+
+
+{
+  "size": 0,
+	"query" : {
+ 		"nested" : {
+            "path" : "speciality",
+	        "query": {
+	        	"nested" : {
+	        		"path" : "speciality.topic",
+		         	"query" :  {
+						"bool" : {
+		                    "must" : [ 
+		                    	{ "match" : { "speciality.topic.name" : "Endoscopy" }}
+		                    ]
+		                }
+		            }
+	        	}
+	        }            
+        }
+    }
+}
+------------------------------------------
+Aggregations:
+{
+  "size": 0,
+  "aggs": {
+    "speciality": {
+      "nested": {
+        "path": "speciality"
+      },
+      "aggs": {
+        "name": {
+          "terms": {
+            "field": "speciality.name",
+            "size": 50
+          }
+        }
+      }
+    }
+  }
+}
+
+{
+  "size": 0,
+  "query" : {
+	 "nested" : {
+        "path" : "speciality",
+        "query" :  {
+			"bool" : {
+                "must" : [ 
+                	{ "match" : { "speciality.name" : "Surgery" }}
+                ]
+            }
+        }
+        
+     }
+   },
+  "aggs": {
+    "speciality": {
+      "nested": {
+        "path": "speciality"
+      },
+      "aggs": {
+        "name": {
+          "terms": {
+            "field": "speciality.name",
+            "size": 50
+          }
+        }
+      }
+    }
+  }
+}
+
+------------------------------------------------------------
+
+{
+  "size": 0,
+  "aggs": {
+    "speciality": {
+      "nested": {
+        "path": "speciality"
+      },
+      "aggs": {
+        "topic": {
+          "nested": {
+            "path": "speciality.topic"
+          },
+          "aggs": {
+            "name": {
+              "terms": {
+                "field": "speciality.topic.name",
+                "size": 10
+              }
+            }
+          }
+        }
+      }
+
+    }
+  }
+}
+
+{
+  
+ "size": 0,
+  "query" : {
+	 "nested" : {
+        "path" : "speciality",
+        "query" :  {
+			"bool" : {
+                "must" : [ 
+                	{ "match" : { "speciality.name" : "Surgery" }}
+                ]
+            }
+        }
+        
+     }
+   },
+  "aggs": {
+    "speciality": {
+      "nested": {
+        "path": "speciality"
+      },
+      "aggs": {
+        "topic": {
+          "nested": {
+            "path": "speciality.topic"
+          },
+          "aggs": {
+            "name": {
+              "terms": {
+                "field": "speciality.topic.name",
+                "size": 10
+              }
+            }
+          }
+        }
+      }
+
+    }
+  }
+}
+
+
+----------- Approach 2 ------------------------------------------------------------------------
+
+curl -XPOST '{elatica_url}/mytokenizer/_delete_by_query' -d '{  "query": {  "match_all": {} } }' -H 'Content-Type: application/json'
+
+curl -XDELETE {elatica_url}/mytokenizer
+
+curl -XPOST {elatica_url}/_search '{"query": {"match_all": {} }}' -H 'Content-Type: application/json'
+
+Second Approach
+  Using the built-in Path tokenizer. 
+
+PUT mytokenizer
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "my_tokenizer"
+        }
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "path_hierarchy",
+          "delimiter": ">"
+        }
+      }
+    }
+  },
+  "mappings": {
+      "properties": {
+      	"name": {"type": "text"}
+      	"description": {"type": "text"},
+        "categories": {
+          "type": "text",
+          "fields": {
+            "facet": { 
+              "type":  "text",
+              "analyzer": "my_analyzer",
+              "fielddata": "true"
+            }
+          }
+        }
+      }
+  }
+}
+
+-------------------------------------------------------
+
+POST mytokenizer/1
+
+{
+	"name": "Surgery-Alimentart Tract", "description": "Surgery/Alimentart Tract",
+    "categories" : "Surgery > Abdomen > Alimentart Tract"
+}
+
+{
+    "name": "S-Endoscopy", "description": "Surgery/Endoscopy",
+    "categories" : "Surgery > Endoscopy"
+}
+
+{
+    "name": "S-Breast", "description": "Surgery/Breast",
+    "categories" : "Surgery > Breast"
+}
+
+------------------------------------------------------
+
+{
+  "size": 0,
+  "aggs": {
+    "categories": {
+      "terms": {
+        "field": "categories"
+      }
+    }
+  }
+}
+
+index: testing
+
+{
+  "size":"0",
+  "aggs": {
+    "group_by_name": {
+      "terms": {
+        "field": "name.keyword"
+      }
+    },
+    "group_by_description": {
+      "terms": {
+        "field": "description.keyword"
+      }
+    },
+    "group_by_categories": {
+      "terms": {
+        "field": "categories.keyword"
+      }
+    }
+  }
+}
